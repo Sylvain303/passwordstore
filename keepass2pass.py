@@ -38,14 +38,22 @@ def get_value(elements, node_text):
 
 def path_for(element, path=''):
     """ Generate path name from elements title and current path """
+    title = ''
     if element.tag == 'Entry':
         title = get_value(element.findall("String"), "Title")
     elif element.tag == 'Group':
         title = element.find('Name').text
-    else: title = ''
+
     
     if path == '': return title
-    else: return '/'.join([path, title])
+    else: 
+        try:
+            retval = '/'.join([path, title])
+        except TypeError as err:
+            print str(err)
+            dump_element(element)
+            sys.exit(2)
+        return retval
 
 def password_data(element, path=''):
     """ Return password data and additional info if available from password entry element. """
@@ -97,6 +105,7 @@ def import_passwords(xml_file, root_path=None):
             import_group(entries, group, root_path)
         password_count = 0
         for path, data in sorted(entries.iteritems()):
+            # importing need fix url in title
             sys.stdout.write("[>>>>] Importing %s ... " % path.encode("utf-8"))
             pass_import_entry(path, data)
             sys.stdout.write("OK\n")
@@ -111,6 +120,15 @@ def usage():
     print "Optional:"
     print " -r ROOT_PATH    Different root path to use than the one in xml file, use \"\" for none"
 
+def dump_element(elements):
+    for element in elements:
+        for child in element.findall('Key'):
+            val = element.find('Value').text
+
+            if val is None:
+                val = 'None'
+
+            print "key:" + child.text + "=" + val
 
 def main(argv):
     try:
