@@ -3,6 +3,7 @@
 # create new entry for password-store
 #
 # Usage: ./create.sh USERNAME URL
+#
 
 user="$1"
 url="$2"
