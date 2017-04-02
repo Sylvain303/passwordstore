@@ -31,6 +31,20 @@ ovh_login() {
   return $r
 }
 
+ovh_test_login() {
+  local r=$(ovh_cli --format json auth current-credential)
+  local regexp="^This credential (is not valid|does not exist)"
+  if [[ "$r" =~ $regexp ]]
+  then
+    return 1
+  fi
+
+  if [[ "$(echo "$r" | jq -r '.status')" == 'expired' ]]
+  then
+    return 1
+  fi
+}
+
 show_ovh_alias() {
   email=$1
   domain=${email#*@}
@@ -151,6 +165,11 @@ update_identity_zim_wiki() {
 }
 
 create_main() {
+  if ! ovh_test_login
+  then
+    ovh_login || { echo "login error" ; exit 1; }
+  fi
+
   if create_password_entry $1 "$2"
   then
     update_identity_zim_wiki
