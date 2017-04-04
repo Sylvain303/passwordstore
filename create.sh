@@ -15,80 +15,15 @@ fi
 SCRIPTDIR=$(dirname $ME)
 OVH_CLIDIR=$HOME/code/ovh/ovh-cli
 
-ovh_cli() {
-  cd $OVH_CLIDIR
-  ./ovh-eu "$@"
-  local r=$?
-  cd - > /dev/null
-  return $r
-}
-
-ovh_login() {
-  cd $OVH_CLIDIR/../ovh-tools
-  ./mk_cred.py update
-  local r=$?
-  cd - > /dev/null
-  return $r
-}
-
-ovh_test_login() {
-  local r=$(ovh_cli --format json auth current-credential)
-  local regexp="^This credential (is not valid|does not exist)"
-  if [[ "$r" =~ $regexp ]]
-  then
-    return 1
-  fi
-
-  if [[ "$(echo "$r" | jq -r '.status')" == 'expired' ]]
-  then
-    return 1
-  fi
-}
-
-show_ovh_alias() {
-  email=$1
-  domain=${email#*@}
-  ovh_cli \
-    email-domain $domain redirection --from "$email" \
-    | grep --color $email
-  return $?
-}
-
-check_ovh_email() {
-  email=$1
-  ovh_cli \
-    email-domain ledragon.net redirection --from "$email" \
-    | grep -q "$email"
-  return $?
-}
-
-create_ovh_email() {
-  email=$1
-  domain=${email#*@}
-
-  if grep -l -q "^$domain$" domain_managed.txt
-  then
-    ovh_cli email-domain $domain redirection post \
-        --from $email \
-        --to postmaster@ledragon.net \
-        --localCopy no
-    return $?
-  else
-    return 0
-  fi
-}
-
-remove_ovh_email() {
-  email=$1
-  domain=${email#*@}
-  id=$(show_ovh_alias $email | awk '{print $4}')
-
-  echo "id=$id"
-  if [[ ! -z "$id" ]]
-  then
-    ovh_cli email-domain ${domain} redirection ${id} delete
-  fi
-}
+PLUGINS_LOAD="$SCRIPTDIR/plugins/load.sh"
+if [[ -e "$PLUGINS_LOAD" ]]
+then
+  source $PLUGINS_LOAD
+  for p in $PLUGINS
+  do
+    source $p
+  done
+fi
 
 create_password_entry() {
   email="$1"
@@ -106,10 +41,13 @@ create_password_entry() {
       exit 1
   fi
 
-  # checkovh email
-  if ! check_ovh_email "$email"
+  if [[ -n "$OVH_EMAIL" ]]
   then
-    create_ovh_email "$email"
+    # checkovh email
+    if ! check_ovh_email "$email"
+    then
+      create_ovh_email "$email"
+    fi
   fi
 
   template="
@@ -135,7 +73,10 @@ url: $url
   # file exists + size > 0
   test -s ~/.password-store/$ENTRY.gpg
   r=$?
-  echo $r
+  if [[ $r -eq 0 ]]
+  then
+    echo "created OK $ENTRY"
+  fi
   return $r
 }
 
@@ -165,14 +106,21 @@ update_identity_zim_wiki() {
 }
 
 create_main() {
-  if ! ovh_test_login
+  if [[ -n "$OVH_EMAIL" ]]
   then
-    ovh_login || { echo "login error" ; exit 1; }
+    if ! ovh_test_login
+    then
+      ovh_login || { echo "login error" ; exit 1; }
+    fi
   fi
 
   if create_password_entry $1 "$2"
   then
-    update_identity_zim_wiki
+    # succes
+    if [[ -n "$ZIM_WIKI" ]]
+    then
+      update_identity_zim_wiki
+    fi
   fi
 }
 
