@@ -1,0 +1,2 @@
+# passwordstore
+passwordstore helper scripts
